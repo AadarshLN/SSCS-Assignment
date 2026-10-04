@@ -1,33 +1,125 @@
 import argparse
+import json
+import os
+import requests
+import base64
 from util import extract_public_key, verify_artifact_signature
 from merkle_proof import DefaultHasher, verify_consistency, verify_inclusion, compute_leaf_hash
 
 def get_log_entry(log_index, debug=False):
-    # TODO: verify that log index value is sane
-    pass
+    
+    response = requests.get("https://rekor.sigstore.dev/api/v1/log/entries", params={"logIndex": log_index}, timeout=15)
 
-def get_verification_proof(log_index, debug=False):
-    # TODO: verify that log index value is sane
-    pass
+    response.raise_for_status()
+    data = response.json()
+
+    entry = next(iter(data.values()))
+    if debug:
+        print(json.dumps(entry,indent=4))
+    return entry
+
+
+def get_verification_proof(log_index, debug=False, entry=None):
+    if entry is None:
+        entry = get_log_entry(log_index,debug)
+    proof = entry['verification']['inclusionProof']
+    leaf_hash = compute_leaf_hash(entry['body'])
+    if debug:
+        print("leaf hash:", leaf_hash)
+        print(json.dumps(proof, indent=4))
+    return proof, leaf_hash
+
+    
 
 def inclusion(log_index, artifact_filepath, debug=False):
-    # TODO::
+    
+
     # verify that log index and artifact filepath values are sane
-    # extract_public_key(certificate)
-    # verify_artifact_signature(signature, public_key, artifact_filepath)
-    # get_verification_proof(log_index)
-    # verify_inclusion(DefaultHasher, index, tree_size, leaf_hash, hashes, root_hash)
-    pass
+    if not isinstance(log_index,int) or log_index < 0:
+        raise ValueError("Invalid log index")
+        return
+    if not artifact_filepath or not os.path.isfile(artifact_filepath):
+        raise ValueError("Invalid artifact filepath")
+        return
+    
+    entry = get_log_entry(log_index, debug)
+    body = json.loads(base64.b64decode(entry["body"]))
+    signature = base64.b64decode(body["spec"]["signature"]["content"])
+    certificate = base64.b64decode(body["spec"]["signature"]["publicKey"]["content"])
+
+    public_key = extract_public_key(certificate)
+    verify_artifact_signature(signature, public_key, artifact_filepath)
+    
+    proof, leaf_hash = get_verification_proof(log_index, debug, entry)
+    verify_inclusion(DefaultHasher, 
+    proof["logIndex"], 
+    proof["treeSize"], 
+    leaf_hash, 
+    proof['hashes'], 
+    proof['rootHash'],debug)
+    print("Offline verification successful for log index", log_index, "and artifact", artifact_filepath)
+    
 
 def get_latest_checkpoint(debug=False):
-    # TODO: Fetch the latest checkpoint from rekor
-    pass
+    response = requests.get("https://rekor.sigstore.dev/api/v1/log", timeout=15)
+    response.raise_for_status()
+    checkpoint = response.json()
+    if debug:
+        with open("checkpoint.json", "w") as f:
+            json.dump(checkpoint, f, indent=5)
+    return checkpoint
+    
+
+
 
 def consistency(prev_checkpoint, debug=False):
-    # TODO: 
+    
     # verify that prev checkpoint is not empty
     # get_latest_checkpoint()
-    pass
+    if not prev_checkpoint or not all (prev_checkpoint.get(k) for k in ("treeID", "treeSize", "rootHash")):
+        raise ValueError("Previous checkpoint is empty or incomplete")
+        return
+    latest = get_latest_checkpoint(debug)
+
+    target = None
+    if str(latest["treeID"]) == str(prev_checkpoint["treeID"]):
+        target = latest
+    else:
+        for shard in latest.get("inactiveShards", []):
+            if str(shard["treeID"]) == str(prev_checkpoint["treeID"]):
+                target = shard
+                break
+    if target is None:
+        print("Tree ID not found in active or inactive shards")
+        return 
+    
+
+    if target['treeSize'] == prev_checkpoint['treeSize']:
+       print("Warning: checkpoints are identical; wait for the log to grow")
+
+
+
+    response = requests.get("https://rekor.sigstore.dev/api/v1/log/proof",
+                            params={"firstSize": prev_checkpoint["treeSize"],
+                                    "lastSize": target["treeSize"],
+                                    "treeID": prev_checkpoint["treeID"]},
+                            timeout=15)
+
+    response.raise_for_status()
+    proof = response.json()
+
+    verify_consistency(DefaultHasher,
+                       prev_checkpoint["treeSize"],
+                       target["treeSize"],
+                       proof["hashes"],
+                       prev_checkpoint["rootHash"],
+                       target["rootHash"])
+
+    
+    print("Consistency verification successful")
+
+
+
 
 def main():
     debug = False
