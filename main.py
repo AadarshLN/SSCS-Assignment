@@ -103,7 +103,7 @@ def consistency(prev_checkpoint, debug=False):
                 break
     if target is None:
         print("Tree ID not found in active or inactive shards")
-        return 
+        return False
     
 
     if target['treeSize'] == prev_checkpoint['treeSize']:
@@ -120,15 +120,35 @@ def consistency(prev_checkpoint, debug=False):
     response.raise_for_status()
     proof = response.json()
 
-    verify_consistency(DefaultHasher,
-                       prev_checkpoint["treeSize"],
-                       target["treeSize"],
-                       proof["hashes"],
-                       prev_checkpoint["rootHash"],
-                       target["rootHash"])
+    try:
+        verify_consistency(DefaultHasher,
+                           prev_checkpoint["treeSize"],
+                           target["treeSize"],
+                           proof["hashes"],
+                           prev_checkpoint["rootHash"],
+                           target["rootHash"])
+    except (RootMismatchError, ValueError) as e:
+        print("Consistency verification failed:", e)
+        return False
+
+    print("Consistency verification successful")
+    return True
+
+
+
+
+
+
+
+    # verify_consistency(DefaultHasher,
+    #                    prev_checkpoint["treeSize"],
+    #                    target["treeSize"],
+    #                    proof["hashes"],
+    #                    prev_checkpoint["rootHash"],
+    #                    target["rootHash"])
 
     
-    print("Consistency verification successful")
+    # print("Consistency verification successful")
 
 
 
@@ -214,7 +234,11 @@ def main():
         prev_checkpoint["treeSize"] = args.tree_size
         prev_checkpoint["rootHash"] = args.root_hash
 
-        consistency(prev_checkpoint, debug)
+       
+
+        if not consistency(prev_checkpoint, debug):
+            sys.exit(1)
+
 
 if __name__ == "__main__":
     main()
