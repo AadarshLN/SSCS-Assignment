@@ -4,7 +4,8 @@ import os
 import requests
 import base64
 from util import extract_public_key, verify_artifact_signature
-from merkle_proof import DefaultHasher, verify_consistency, verify_inclusion, compute_leaf_hash
+import sys
+from merkle_proof import DefaultHasher, verify_consistency, verify_inclusion, compute_leaf_hash, RootMismatchError
 
 def get_log_entry(log_index, debug=False):
     
@@ -48,17 +49,24 @@ def inclusion(log_index, artifact_filepath, debug=False):
     certificate = base64.b64decode(body["spec"]["signature"]["publicKey"]["content"])
 
     public_key = extract_public_key(certificate)
-    verify_artifact_signature(signature, public_key, artifact_filepath)
-    
+    if not verify_artifact_signature(signature, public_key, artifact_filepath):
+        print("Verification failed for log index", log_index, "and artifact", artifact_filepath)
+        return False
+
     proof, leaf_hash = get_verification_proof(log_index, debug, entry)
-    verify_inclusion(DefaultHasher, 
-    proof["logIndex"], 
-    proof["treeSize"], 
-    leaf_hash, 
-    proof['hashes'], 
-    proof['rootHash'],debug)
+    try:
+        verify_inclusion(DefaultHasher,
+        proof["logIndex"],
+        proof["treeSize"],
+        leaf_hash,
+        proof['hashes'],
+        proof['rootHash'],debug)
+    except (RootMismatchError, ValueError) as e:
+        print("Inclusion proof verification failed:", e)
+        return False
     print("Offline verification successful for log index", log_index, "and artifact", artifact_filepath)
-    
+    return True
+
 
 def get_latest_checkpoint(debug=False):
     response = requests.get("https://rekor.sigstore.dev/api/v1/log", timeout=15)
@@ -155,8 +163,9 @@ def main():
         # if debug is enabled, store it in a file checkpoint.json
         checkpoint = get_latest_checkpoint(debug)
         print(json.dumps(checkpoint, indent=4))
-    if args.inclusion:
-        inclusion(args.inclusion, args.artifact, debug)
+    if args.inclusion is not None:
+        if not inclusion(args.inclusion, args.artifact, debug):
+            sys.exit(1)
     if args.consistency:
         if not args.tree_id:
             print("please specify tree id for prev checkpoint")

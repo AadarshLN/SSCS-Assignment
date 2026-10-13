@@ -47,7 +47,7 @@ def verify_artifact_signature(signature, public_key, artifact_filename):
     with open(artifact_filename, "rb") as data_file:
         data = data_file.read()
 
-    # verify the signature
+    # verify the signature; returns True only if the signature is valid
     try:
         public_key.verify(
             signature,
@@ -56,5 +56,8 @@ def verify_artifact_signature(signature, public_key, artifact_filename):
         )
     except InvalidSignature as e:
         print("Signature is invalid")
+        return False
     except Exception as e:
         print("Exception in verifying artifact signature:", e)
+        return False
+    return True
