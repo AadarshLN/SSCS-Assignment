@@ -170,16 +170,44 @@ def main():
     if args.inclusion is not None:
         if not inclusion(args.inclusion, args.artifact, debug):
             sys.exit(1)
+    # if args.consistency:
+    #     if not args.tree_id:
+    #         print("please specify tree id for prev checkpoint")
+    #         return
+    #     if not args.tree_size:
+    #         print("please specify tree size for prev checkpoint")
+    #         return
+
+    #     if not args.root_hash:
+    #         print("please specify root hash for prev checkpoint")
+    #         return
+
+    #     try:
+    #         if len(bytes.fromhex(args.root_hash)) != 32:
+    #             raise ValueError
+    #     except ValueError:
+    #         parser.error("--root-hash must be a 64-character hex SHA-256 digest")
     if args.consistency:
         if not args.tree_id:
-            print("please specify tree id for prev checkpoint")
-            return
-        if not args.tree_size:
-            print("please specify tree size for prev checkpoint")
-            return
+            parser.error("please specify tree id for prev checkpoint")
+        if not (args.tree_id.isascii() and args.tree_id.isdigit()) \
+                or not 0 < int(args.tree_id) < 2**63:
+            parser.error("--tree-id must be a positive 64-bit integer")
+
+        if args.tree_size is None:
+            parser.error("please specify tree size for prev checkpoint")
+        if args.tree_size < 1:
+            parser.error("--tree-size must be a positive integer")
+
         if not args.root_hash:
-            print("please specify root hash for prev checkpoint")
-            return
+            parser.error("please specify root hash for prev checkpoint")
+        try:
+            if len(bytes.fromhex(args.root_hash)) != 32:
+                raise ValueError
+        except ValueError:
+            parser.error("--root-hash must be a 64-character hex SHA-256 digest")
+
+
 
         prev_checkpoint = {}
         prev_checkpoint["treeID"] = args.tree_id
