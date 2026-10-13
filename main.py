@@ -44,11 +44,15 @@ def inclusion(log_index, artifact_filepath, debug=False):
         return
     
     entry = get_log_entry(log_index, debug)
-    body = json.loads(base64.b64decode(entry["body"]))
-    signature = base64.b64decode(body["spec"]["signature"]["content"])
-    certificate = base64.b64decode(body["spec"]["signature"]["publicKey"]["content"])
+    try:
+        body = json.loads(base64.b64decode(entry["body"]))
+        signature = base64.b64decode(body["spec"]["signature"]["content"])
+        certificate = base64.b64decode(body["spec"]["signature"]["publicKey"]["content"])
+        public_key = extract_public_key(certificate)
+    except (KeyError, ValueError) as e:
+        print("Could not read signature or certificate from log entry", log_index, ":", e)
+        return False
 
-    public_key = extract_public_key(certificate)
     if not verify_artifact_signature(signature, public_key, artifact_filepath):
         print("Verification failed for log index", log_index, "and artifact", artifact_filepath)
         return False
