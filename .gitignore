@@ -1,4 +1,7 @@
 __pycache__/
 .venv/
+.mypy_cache/
+.ruff_cache/
 part2-outputs/
 part2-outputs.zip
+checkpoint.json

@@ -1,0 +1,25 @@
+# CODEOWNERS: defines who is responsible for reviewing changes.
+# Later rules take precedence over earlier ones.
+# Docs: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default owner for everything in the repository
+*                       @AadarshLN
+
+# Core verification logic
+/main.py                @AadarshLN
+/merkle_proof.py        @AadarshLN
+/util.py                @AadarshLN
+
+# Tests
+/tests/                 @AadarshLN
+
+# Dependencies, build and tool configuration
+/pyproject.toml         @AadarshLN
+/poetry.lock            @AadarshLN
+/.pre-commit-config.yaml @AadarshLN
+
+# Repository policy and ownership files
+/.github/               @AadarshLN
+/SECURITY.md            @AadarshLN
+/CONTRIBUTING.md        @AadarshLN
+/LICENSE                @AadarshLN
